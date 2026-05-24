@@ -15,6 +15,7 @@ Production-grade backend for the **Abrilingo teacher platform**. It implements i
 - [Running the Application](#running-the-application)
 - [API Documentation](#api-documentation)
 - [Database Migrations](#database-migrations)
+- [Super-Admin Bootstrap](#super-admin-bootstrap)
 - [API Reference](#api-reference)
 - [Auth & Session Flow](#auth--session-flow)
 - [RBAC Model](#rbac-model)
@@ -99,6 +100,8 @@ Permissions are linked to roles (`role_permissions`) but can also be granted dir
     │       └── async-handler.ts       # Routes async errors to globalExceptionFilter
     ├── migrations/
     │   └── 1778716800000-InitialSchema.ts
+    ├── scripts/
+    │   └── seed-admin.ts              # One-time super-admin bootstrap (npm run seed:admin)
     ├── modules/
     │   ├── auth/
     │   │   ├── controllers/auth.controller.ts
@@ -241,6 +244,76 @@ npm run migration:revert
 ```
 
 > **First run:** execute `migration:run` after `docker-compose up -d` to create all tables.
+
+> **Note:** All migration commands load `.env` automatically. If you use a non-default `DB_PORT` or `DB_PASSWORD` (e.g. a Docker-mapped port), make sure `.env` is present before running CLI commands — do not rely on a globally installed PostgreSQL picking up the defaults.
+
+---
+
+## Super-Admin Bootstrap
+
+The system uses **invitation-only registration**, which creates a bootstrap problem: the first `SUPER_ADMIN` cannot register through the normal flow because there is no one to send the invitation. Use the seed script to create the initial admin account directly from the database.
+
+### 1 — Add the bootstrap variables to `.env`
+
+```dotenv
+SUPER_ADMIN_EMAIL=your.email@gmail.com
+SUPER_ADMIN_GOOGLE_ID=1234567890123456789
+SUPER_ADMIN_FIRST_NAME=Your First Name   # optional, defaults to "Super"
+SUPER_ADMIN_LAST_NAME=Your Last Name     # optional, defaults to "Admin"
+```
+
+**Finding your Google sub ID (`SUPER_ADMIN_GOOGLE_ID`):**
+
+The sub ID is the unique numeric identifier Google attaches to every account. Follow these three steps to retrieve it.
+
+#### Step 1 — Generate the token in Google OAuth Playground
+
+1. Go to [developers.google.com/oauthplayground](https://developers.google.com/oauthplayground).
+2. In the left panel, find **Google OAuth2 API v2** and tick the boxes for `openid`, `email`, and `profile`.
+3. Click **Authorize APIs**, log in with your Google account, and confirm the permissions.
+4. Once redirected back, click **Exchange authorization code for tokens**.
+
+#### Step 2 — Copy the `id_token`
+
+In the right-hand panel, locate the `"id_token"` field in the response JSON. Copy the entire long string next to it (it starts with `eyJ`).
+
+#### Step 3 — Decode on JWT.io
+
+1. Go to [jwt.io](https://jwt.io).
+2. Paste the copied string into the **Encoded** box on the left.
+3. In the **Decoded** panel on the right, look at the **Payload** section. The long number next to `"sub"` is your Google ID — paste it as `SUPER_ADMIN_GOOGLE_ID`.
+
+### 2 — Run migrations (if not already done)
+
+```bash
+npm run migration:run
+```
+
+### 3 — Seed the super-admin
+
+```bash
+npm run seed:admin
+```
+
+Expected output:
+
+```
+[seed:admin] Database connection established.
+[seed:admin] SUPER_ADMIN role created (id: <uuid>).
+[seed:admin] Super-admin user CREATED.
+
+[seed:admin] ✔ Done.
+─────────────────────────────────────────
+  id      : <uuid>
+  email   : your.email@gmail.com
+  role    : SUPER_ADMIN
+  status  : active
+─────────────────────────────────────────
+```
+
+The script is **idempotent** — running it again updates the existing account's role and status to `SUPER_ADMIN / active` without creating a duplicate.
+
+Once the super-admin account exists, all subsequent users can be onboarded through the normal invitation flow via `POST /api/invitations`.
 
 ---
 
@@ -446,6 +519,10 @@ The TypeORM Data Mapper pattern means entities have zero business logic — they
 | `GOOGLE_CLIENT_ID`       | —                       | **Yes**  |
 | `GOOGLE_CLIENT_SECRET`   | —                       | **Yes**  |
 | `GOOGLE_CALLBACK_URL`    | —                       | **Yes**  |
-| `RESEND_API_KEY`         | —                       | **Yes**  |
-| `RESEND_FROM_EMAIL`      | `noreply@abrilingo.com` | **Yes**  |
-| `ENABLE_SWAGGER`         | —                       | —        |
+| `RESEND_API_KEY`         | —                       | **Yes**      |
+| `RESEND_FROM_EMAIL`      | `noreply@abrilingo.com` | **Yes**      |
+| `ENABLE_SWAGGER`         | —                       | —            |
+| `SUPER_ADMIN_EMAIL`      | —                       | Seed only    |
+| `SUPER_ADMIN_GOOGLE_ID`  | —                       | Seed only    |
+| `SUPER_ADMIN_FIRST_NAME` | `Super`                 | —            |
+| `SUPER_ADMIN_LAST_NAME`  | `Admin`                 | —            |

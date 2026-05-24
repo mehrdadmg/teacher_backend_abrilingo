@@ -19,6 +19,11 @@ npm run test -- --testPathPattern=<file>  # run a single test file
 npm run lint         # ESLint
 npm run lint:fix     # auto-fix lint issues
 
+npm run migration:run       # apply pending migrations
+npm run migration:generate  # generate migration from entity changes
+npm run migration:revert    # roll back last migration
+npm run seed:admin          # bootstrap first SUPER_ADMIN (idempotent, reads SUPER_ADMIN_* from .env)
+
 docker-compose up    # start app + postgres + redis containers
 ```
 
@@ -30,6 +35,8 @@ docker-compose up    # start app + postgres + redis containers
 src/
   app.ts                  # Express app setup (middleware, routes, error handler)
   main.ts                 # entry point — DB connect, start server
+  scripts/
+    seed-admin.ts         # one-time super-admin bootstrap (npm run seed:admin)
   modules/
     auth/                 # Google OAuth, JWT issue/refresh/revoke
     users/                # user CRUD, status management
@@ -52,6 +59,13 @@ Each module contains: `controllers/`, `services/`, `entities/`, `dtos/`, `reposi
 ### Database
 - **Never use `synchronize: true`** — all schema changes via TypeORM migrations only.
 - Use the **Data Mapper pattern** (`Repository<Entity>`) not Active Record.
+- `database.config.ts` calls `dotenv.config()` at the top so that TypeORM CLI commands (`migration:run`, `migration:generate`, `migration:revert`) pick up `.env` automatically — **do not remove this call**.
+- The machine may have a native PostgreSQL on port 5432 alongside the Docker-mapped port (`DB_PORT` in `.env`, default `5444`). Always ensure `.env` is present before running any `typeorm` CLI command.
+
+### Super-Admin Bootstrap
+- The first `SUPER_ADMIN` must be created via `npm run seed:admin` (invitation-only flow has no other entry point).
+- Script lives in `src/scripts/seed-admin.ts`. Required env vars: `SUPER_ADMIN_EMAIL`, `SUPER_ADMIN_GOOGLE_ID`. Optional: `SUPER_ADMIN_FIRST_NAME`, `SUPER_ADMIN_LAST_NAME`.
+- Script is idempotent — safe to re-run; updates role/status on existing accounts without creating duplicates.
 
 ### Authentication
 - Google OAuth only (`passport-google-oauth20`) — no local auth.
