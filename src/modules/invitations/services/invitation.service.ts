@@ -71,6 +71,24 @@ class InvitationService {
       order: { createdAt: 'DESC' },
     });
   }
+
+  async delete(id: string): Promise<void> {
+    const invitation = await this.repo.findOne({ where: { id } });
+
+    if (!invitation) {
+      throw Object.assign(new Error('Invitation not found'), { statusCode: 404 });
+    }
+
+    if (invitation.isUsed) {
+      throw Object.assign(
+        new Error('Cannot delete an invitation that has already been used'),
+        { statusCode: 409 },
+      );
+    }
+
+    await this.repo.delete(id);
+    logger.info({ message: 'Invitation deleted', invitationId: id });
+  }
 }
 
 export const invitationService = new InvitationService();

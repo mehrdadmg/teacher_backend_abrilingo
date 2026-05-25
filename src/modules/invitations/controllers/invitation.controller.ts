@@ -112,3 +112,46 @@ invitationRouter.get(
     return res.status(200).json(invitations);
   }),
 );
+
+/**
+ * @openapi
+ * /api/invitations/{id}:
+ *   delete:
+ *     tags: [Invitations]
+ *     summary: Delete an invitation
+ *     description: |
+ *       Permanently deletes an unused invitation token.
+ *       Returns **409** if the invitation has already been used.
+ *       Rate-limited to **20 requests per 15 minutes** per IP. SUPER_ADMIN only.
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: UUID of the invitation to delete
+ *     responses:
+ *       '204':
+ *         description: Invitation deleted successfully
+ *       '401':
+ *         $ref: '#/components/responses/Unauthorized'
+ *       '403':
+ *         $ref: '#/components/responses/Forbidden'
+ *       '404':
+ *         $ref: '#/components/responses/NotFound'
+ *       '409':
+ *         $ref: '#/components/responses/Conflict'
+ *       '429':
+ *         $ref: '#/components/responses/TooManyRequests'
+ */
+// DELETE /api/invitations/:id — delete an unused invitation
+invitationRouter.delete(
+  '/:id',
+  asyncHandler(async (req: Request, res: Response) => {
+    await invitationService.delete(req.params.id);
+    return res.status(204).send();
+  }),
+);
