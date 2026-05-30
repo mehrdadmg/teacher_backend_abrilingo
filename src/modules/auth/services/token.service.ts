@@ -80,7 +80,7 @@ class TokenService {
 
   async blacklistToken(jti: string, ttlSeconds: number): Promise<void> {
     if (ttlSeconds > 0) {
-      await redisClient.setex(`${BLACKLIST_PREFIX}${jti}`, ttlSeconds, '1');
+      await redisClient.set(`${BLACKLIST_PREFIX}${jti}`, '1', 'EX', ttlSeconds);
     }
   }
 

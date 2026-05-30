@@ -130,8 +130,8 @@ class AuthService {
 
     // Use allSettled so a single failed send doesn't suppress the rest
     const results = await Promise.allSettled(
-      admins.map((admin) =>
-        resend.emails.send({
+      admins.map(async (admin) => {
+        const { error } = await resend.emails.send({
           from: config.resend.fromEmail,
           to: admin.email,
           subject: `[Abrilingo] New user awaiting approval: ${newUserName}`,
@@ -141,8 +141,9 @@ class AuthService {
             newUserEmail: newUser.email,
             reviewUrl,
           }),
-        }),
-      ),
+        });
+        if (error) throw error;
+      }),
     );
 
     const failed = results.filter((r) => r.status === 'rejected').length;

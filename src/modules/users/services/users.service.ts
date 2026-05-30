@@ -95,7 +95,7 @@ class UsersService {
   }
 
   private async sendWelcomeEmail(user: User): Promise<void> {
-    await resend.emails.send({
+    const { error } = await resend.emails.send({
       from: config.resend.fromEmail,
       to: user.email,
       subject: 'Welcome to Abrilingo — your account is approved!',
@@ -104,6 +104,7 @@ class UsersService {
         loginUrl: `${config.clientUrl}/login`,
       }),
     });
+    if (error) throw error;
   }
 }
 

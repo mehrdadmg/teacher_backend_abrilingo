@@ -45,14 +45,13 @@ class InvitationService {
     const inviteLink = `${config.clientUrl}/accept-invite?token=${token}`;
     const invitedByName = `${invitedBy.firstName} ${invitedBy.lastName}`.trim();
 
-    try {
-      await resend.emails.send({
-        from: config.resend.fromEmail,
-        to: email,
-        subject: `${invitedByName} invited you to join Abrilingo`,
-        html: invitationEmailTemplate({ inviteLink, invitedByName, recipientEmail: email }),
-      });
-    } catch (emailError) {
+    const { error: emailError } = await resend.emails.send({
+      from: config.resend.fromEmail,
+      to: email,
+      subject: `${invitedByName} invited you to join Abrilingo`,
+      html: invitationEmailTemplate({ inviteLink, invitedByName, recipientEmail: email }),
+    });
+    if (emailError) {
       // Compensate: remove the invitation so admin can retry cleanly
       await this.repo.delete(invitation.id);
       logger.error({ message: 'Failed to send invitation email', email, error: emailError });

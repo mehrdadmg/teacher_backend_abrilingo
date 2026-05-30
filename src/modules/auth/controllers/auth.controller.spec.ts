@@ -29,7 +29,7 @@ jest.mock('../../../config/database.config', () => ({
 }));
 
 jest.mock('../../../config/email.config', () => ({
-  resend: { emails: { send: jest.fn().mockResolvedValue({ id: 'email-id' }) } },
+  resend: { emails: { send: jest.fn().mockResolvedValue({ data: { id: 'email-id' }, error: null }) } },
 }));
 
 jest.mock('../../../config/logger.config', () => ({
@@ -65,7 +65,7 @@ describe('POST /api/auth/refresh', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (redisClient.get as jest.Mock).mockResolvedValue(null);   // not blacklisted by default
-    (redisClient.setex as jest.Mock).mockResolvedValue('OK');
+    (redisClient.set as jest.Mock).mockResolvedValue('OK');
   });
 
   it('returns 401 when no refresh_token cookie is provided', async () => {
@@ -106,10 +106,11 @@ describe('POST /api/auth/refresh', () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ message: 'Tokens refreshed successfully' });
     // Old jti was blacklisted before the new pair was issued
-    expect(redisClient.setex).toHaveBeenCalledWith(
+    expect(redisClient.set).toHaveBeenCalledWith(
       expect.stringContaining('blacklist:'),
-      expect.any(Number),
       '1',
+      'EX',
+      expect.any(Number),
     );
   });
 
@@ -154,7 +155,7 @@ describe('POST /api/auth/logout', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (redisClient.get as jest.Mock).mockResolvedValue(null);
-    (redisClient.setex as jest.Mock).mockResolvedValue('OK');
+    (redisClient.set as jest.Mock).mockResolvedValue('OK');
   });
 
   it('returns 200 with success message and blacklists both tokens', async () => {
@@ -168,7 +169,7 @@ describe('POST /api/auth/logout', () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ message: 'Logged out successfully' });
     // Both tokens' jtis are sent to Redis blacklist
-    expect(redisClient.setex).toHaveBeenCalledTimes(2);
+    expect(redisClient.set).toHaveBeenCalledTimes(2);
   });
 
   it('returns 200 gracefully when no cookies are present', async () => {
@@ -176,6 +177,6 @@ describe('POST /api/auth/logout', () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ message: 'Logged out successfully' });
-    expect(redisClient.setex).not.toHaveBeenCalled();
+    expect(redisClient.set).not.toHaveBeenCalled();
   });
 });

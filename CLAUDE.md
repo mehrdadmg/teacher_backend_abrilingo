@@ -139,3 +139,20 @@ The vocabulary module manages German word entries across **three main tables** (
 1. Admin creates invite → token stored in `invitation_tokens` (`email`, `token`, `expires_at`, `is_used`) → email sent via Resend SDK.
 2. User clicks link → Google OAuth → token validated → account created as `pending_approval`.
 3. Admin activates → Welcome email sent.
+
+### Key Library API Notes
+
+**Resend (v3+)**
+`resend.emails.send()` never throws — it returns `{ data, error }`. Always destructure and check `error`:
+```typescript
+const { error } = await resend.emails.send({ from, to, subject, html });
+if (error) throw error; // or handle compensatory logic
+```
+Never use a bare try/catch around `resend.emails.send()` — it will silently swallow failures.
+
+**ioredis (v5)**
+Use the modern `SET key value EX seconds` syntax — avoid the legacy `setex` alias:
+```typescript
+await redisClient.set(key, '1', 'EX', ttlSeconds); // correct
+await redisClient.setex(key, ttlSeconds, '1');      // legacy — avoid
+```

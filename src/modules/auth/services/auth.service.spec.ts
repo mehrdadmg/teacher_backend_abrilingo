@@ -23,7 +23,7 @@ jest.mock('../../../config/redis.config', () => ({
   },
 }));
 jest.mock('../../../config/email.config', () => ({
-  resend: { emails: { send: jest.fn().mockResolvedValue({ id: 'email-id' }) } },
+  resend: { emails: { send: jest.fn().mockResolvedValue({ data: { id: 'email-id' }, error: null }) } },
 }));
 jest.mock('../../../config/logger.config', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() },

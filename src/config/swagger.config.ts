@@ -335,6 +335,37 @@ const swaggerOptions: Options = {
             },
           },
         },
+        UpdateExampleDto: {
+          type: 'object',
+          description: 'All fields are optional; supply only the ones you want to change.',
+          properties: {
+            sentence: {
+              type: 'string',
+              description: 'A natural German sentence containing the target word.',
+              example: 'Der Tisch ist aus Holz.',
+            },
+            translationFa: {
+              type: 'string',
+              nullable: true,
+              description: 'Persian (Farsi) translation (pass null to clear).',
+            },
+            translationEn: {
+              type: 'string',
+              nullable: true,
+              description: 'English translation (pass null to clear).',
+            },
+            translationRu: {
+              type: 'string',
+              nullable: true,
+              description: 'Russian translation (pass null to clear).',
+            },
+            translationAr: {
+              type: 'string',
+              nullable: true,
+              description: 'Arabic translation (pass null to clear).',
+            },
+          },
+        },
         Example: {
           type: 'object',
           properties: {
