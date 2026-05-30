@@ -16,6 +16,7 @@ Production-grade backend for the **Abrilingo teacher platform**. It implements i
 - [API Documentation](#api-documentation)
 - [Database Migrations](#database-migrations)
 - [Super-Admin Bootstrap](#super-admin-bootstrap)
+- [Vocabulary Seed Data](#vocabulary-seed-data)
 - [API Reference](#api-reference)
 - [Auth & Session Flow](#auth--session-flow)
 - [RBAC Model](#rbac-model)
@@ -99,9 +100,17 @@ Permissions are linked to roles (`role_permissions`) but can also be granted dir
     │   └── utils/
     │       └── async-handler.ts       # Routes async errors to globalExceptionFilter
     ├── migrations/
-    │   └── 1778716800000-InitialSchema.ts
+    │   ├── 1778716800000-InitialSchema.ts               # Users, roles, invitations, permissions
+    │   ├── 1779661664831-DescriptiveName.ts             # Invitation delete API support
+    │   ├── 1779753600000-VocabularySchema.ts            # Core vocabulary tables + indexes + triggers
+    │   ├── 1779840000000-WordExampleManyToMany.ts       # word_examples join table (M2M)
+    │   ├── 1779926400000-MergeExampleTranslations.ts   # Inline example translations (drops example_translations)
+    │   ├── 1780012800000-FlattenAudioIntoWordAndExample.ts  # Inline audio columns (drops audio_files)
+    │   ├── 1780099200000-AddUpdatedAtToExamples.ts     # updated_at column on examples
+    │   └── 1780185600000-MergeWordTranslationsIntoWords.ts  # Inline word translations (drops word_translations)
     ├── scripts/
-    │   └── seed-admin.ts              # One-time super-admin bootstrap (npm run seed:admin)
+    │   ├── seed-admin.ts              # One-time super-admin bootstrap (npm run seed:admin)
+    │   └── seed-vocabulary.ts         # German vocabulary sample data  (npm run seed:vocabulary)
     ├── modules/
     │   ├── auth/
     │   │   ├── controllers/auth.controller.ts
@@ -120,10 +129,18 @@ Permissions are linked to roles (`role_permissions`) but can also be granted dir
     │   │   └── entities/
     │   │       ├── role.entity.ts     # RoleName enum: SUPER_ADMIN | TEACHER | OPERATOR
     │   │       └── permission.entity.ts
-    │   └── users/
-    │       ├── controllers/users.controller.ts
-    │       ├── entities/user.entity.ts  # UserStatus enum: pending_approval | active | suspended
-    │       └── services/users.service.ts
+    │   ├── users/
+    │   │   ├── controllers/users.controller.ts
+    │   │   ├── entities/user.entity.ts  # UserStatus enum: pending_approval | active | suspended
+    │   │   └── services/users.service.ts
+    │   └── vocabulary/
+    │       ├── controllers/vocabulary.controller.ts  # Vocabulary REST endpoints
+    │       ├── dtos/                                 # DTO files (create + update per sub-resource)
+    │       ├── entities/
+    │       │   ├── word.entity.ts          # Root entity; inline translations + audio; owns M2M @JoinTable
+    │       │   ├── verb-details.entity.ts  # Conjugation data (FK → word)
+    │       │   └── example.entity.ts       # Inline translations + audio; M2M inverse side
+    │       └── services/vocabulary.service.ts
     └── types/
         └── express.d.ts               # Adds req.jwtPayload to Express Request
 ```
@@ -317,6 +334,34 @@ Once the super-admin account exists, all subsequent users can be onboarded throu
 
 ---
 
+## Vocabulary Seed Data
+
+After running migrations the vocabulary tables are empty. A seed script loads two complete German word entries — a noun (**der Tisch** / table) and an irregular verb (**sehen** / to see) — with multilingual translations (fa / en / ru / ar) and example sentences stored inline.
+
+```bash
+npm run seed:vocabulary
+```
+
+Expected output:
+
+```
+[seed:vocabulary] Database connection established.
+[seed:vocabulary] Seeding 2 words (with translations + audio), 1 verb detail, 4 examples (2 with audio, translations inline)…
+[seed:vocabulary] ✔ Done — vocabulary sample data inserted.
+─────────────────────────────────────────
+  words    : Tisch (a0000001...) — fa/en/ru/ar + audio
+             sehen (a0000002...) — fa/en/ru/ar + audio
+  verb_details : 1 (sehen)
+  examples     : 4 (2 with audio, translations inline)
+─────────────────────────────────────────
+```
+
+The script is **idempotent** — re-running it when data is already present prints a short confirmation and exits without touching the database.
+
+> Examples are linked to words through the `word_examples` many-to-many join table. The seed inserts the join rows after saving the example sentences.
+
+---
+
 ## API Reference
 
 All responses use a consistent error envelope:
@@ -358,6 +403,71 @@ Authentication is cookie-based. The browser sends `access_token` and `refresh_to
 | `GET`   | `/api/users/:id`          | `SUPER_ADMIN`, `OPERATOR` | Get a single user with role and direct permissions.                                                       |
 | `PATCH` | `/api/users/:id/activate` | `SUPER_ADMIN`             | Atomic activation: sets status → `active`, marks invitation used, clears Redis keys, sends welcome email. |
 | `PATCH` | `/api/users/:id/suspend`  | `SUPER_ADMIN`             | Sets status → `suspended` and writes `suspended:{id}` to Redis for instant token revocation.              |
+
+### Vocabulary
+
+All vocabulary routes require a valid `access_token` cookie. Write operations additionally require the `SUPER_ADMIN` or `OPERATOR` role.
+
+Translations (fa / en / ru / ar) and audio metadata are stored as **inline columns** directly on `words` and `examples` rows — there are no separate translation or audio tables.
+
+**Words**
+
+| Method   | Path                        | Auth                      | Description |
+| -------- | --------------------------- | ------------------------- | ----------- |
+| `GET`    | `/api/vocabulary/words`     | Any authenticated         | Paginated list. Filters: `level`, `pos`, `q` (umlaut-insensitive search), `exampleId`, `noAudio`, `noTranslationEn/Ru/Fa/Ar`, `updatedAfter`, `updatedBefore`, `audioCreatedAfter`, `audioCreatedBefore`, `page`, `limit`. |
+| `POST`   | `/api/vocabulary/words`     | `SUPER_ADMIN`, `OPERATOR` | Create word. `gender` required when `partOfSpeech` is `noun`. Returns 409 on duplicate (word + partOfSpeech). |
+| `GET`    | `/api/vocabulary/words/:id` | Any authenticated         | Get word with verb details and examples. |
+| `PATCH`  | `/api/vocabulary/words/:id` | `SUPER_ADMIN`, `OPERATOR` | Partial update of word fields. |
+| `DELETE` | `/api/vocabulary/words/:id` | `SUPER_ADMIN`, `OPERATOR` | Delete word and all children (verb details, example associations) via DB cascade. |
+
+**Verb Details** (sub-resource of word)
+
+| Method  | Path                                         | Auth                      | Description                                  |
+| ------- | -------------------------------------------- | ------------------------- | -------------------------------------------- |
+| `POST`  | `/api/vocabulary/words/:wordId/verb-details` | `SUPER_ADMIN`, `OPERATOR` | Create conjugation data (409 if exists).     |
+| `PATCH` | `/api/vocabulary/words/:wordId/verb-details` | `SUPER_ADMIN`, `OPERATOR` | Update conjugation data (404 if not found).  |
+
+**Word Translations** (inline columns on the word row)
+
+Translations are stored as four nullable TEXT columns (`translation_fa/en/ru/ar`) on the `words` row. All write endpoints return the updated `Word` object.
+
+| Method   | Path                                               | Auth                      | Description |
+| -------- | -------------------------------------------------- | ------------------------- | ----------- |
+| `POST`   | `/api/vocabulary/words/:wordId/translations`       | `SUPER_ADMIN`, `OPERATOR` | Set a translation. Body: `{ languageCode: "fa"\|"en"\|"ru"\|"ar", translation: "..." }`. Returns 409 if that language is already set. |
+| `PATCH`  | `/api/vocabulary/words/:wordId/translations/:lang` | `SUPER_ADMIN`, `OPERATOR` | Overwrite a translation. Body: `{ translation: "..." }`. Always succeeds (no 409). |
+| `DELETE` | `/api/vocabulary/words/:wordId/translations/:lang` | `SUPER_ADMIN`, `OPERATOR` | Clear a translation (nulls the column). Returns 204. |
+
+**Word Audio** (inline on the word row)
+
+| Method   | Path                               | Auth                      | Description |
+| -------- | ---------------------------------- | ------------------------- | ----------- |
+| `PUT`    | `/api/vocabulary/words/:wordId/audio` | `SUPER_ADMIN`, `OPERATOR` | Set (or replace) the word's audio. Body: `{ fileUrl: "https://..." }`. Returns updated Word. |
+| `DELETE` | `/api/vocabulary/words/:wordId/audio` | `SUPER_ADMIN`, `OPERATOR` | Clear word audio (nulls `audio_file_url` and `audio_created_at`). Returns updated Word. |
+
+**Example Sentences** — scoped to a word
+
+Words and examples share a many-to-many relationship via the `word_examples` join table. An example can belong to more than one word.
+
+| Method   | Path                                                  | Auth                      | Description |
+| -------- | ----------------------------------------------------- | ------------------------- | ----------- |
+| `GET`    | `/api/vocabulary/words/:wordId/examples/:exId`        | Any authenticated         | Get a single example (verifies the word↔example link). |
+| `DELETE` | `/api/vocabulary/words/:wordId/examples/:exId`        | `SUPER_ADMIN`, `OPERATOR` | **Detach only** — removes the word↔example join row. The example row is not deleted. |
+| `POST`   | `/api/vocabulary/words/:wordId/examples/:exId/link`   | `SUPER_ADMIN`, `OPERATOR` | Link an existing example to an additional word (409 if already linked). |
+
+**Examples** — standalone
+
+| Method   | Path                             | Auth                      | Description |
+| -------- | -------------------------------- | ------------------------- | ----------- |
+| `POST`   | `/api/vocabulary/examples`       | `SUPER_ADMIN`, `OPERATOR` | Create a standalone example sentence (not yet linked to any word). Body accepts `sentence` plus optional inline translations (`translationFa/En/Ru/Ar`). Use the `/link` endpoint to associate it with words. |
+| `GET`    | `/api/vocabulary/examples`       | Any authenticated         | Paginated list, newest first. Filters: `q` (umlaut-insensitive search), `wordId`, `noAudio`, `noTranslationEn/Ru/Fa/Ar`, `updatedAfter`, `updatedBefore`, `audioCreatedAfter`, `audioCreatedBefore`, `page`, `limit`. |
+| `DELETE` | `/api/vocabulary/examples/:exId` | `SUPER_ADMIN`, `OPERATOR` | **Permanently delete** the example and all its word associations via cascade. |
+
+**Example Audio** (inline on the example row)
+
+| Method   | Path                                                  | Auth                      | Description |
+| -------- | ----------------------------------------------------- | ------------------------- | ----------- |
+| `PUT`    | `/api/vocabulary/words/:wordId/examples/:exId/audio`  | `SUPER_ADMIN`, `OPERATOR` | Set (or replace) the example's audio. Body: `{ fileUrl: "https://..." }`. Returns updated Example. |
+| `DELETE` | `/api/vocabulary/words/:wordId/examples/:exId/audio`  | `SUPER_ADMIN`, `OPERATOR` | Clear example audio. Returns updated Example. |
 
 ### Health
 
