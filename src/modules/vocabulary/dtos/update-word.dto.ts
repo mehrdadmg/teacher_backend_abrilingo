@@ -1,9 +1,10 @@
-import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional, IsString, IsUrl } from 'class-validator';
 import { Gender, Level, PartOfSpeech } from '../entities/word.entity';
 
 export class UpdateWordDto {
   @IsOptional()
   @IsString()
+  @IsNotEmpty()
   word?: string;
 
   @IsOptional()
@@ -16,6 +17,7 @@ export class UpdateWordDto {
 
   @IsOptional()
   @IsString()
+  @IsNotEmpty()
   plural?: string | null;
 
   @IsOptional()
@@ -26,22 +28,26 @@ export class UpdateWordDto {
 
   @IsOptional()
   @IsString()
+  @IsNotEmpty()
   translationFa?: string | null;
 
   @IsOptional()
   @IsString()
+  @IsNotEmpty()
   translationEn?: string | null;
 
   @IsOptional()
   @IsString()
+  @IsNotEmpty()
   translationRu?: string | null;
 
   @IsOptional()
   @IsString()
+  @IsNotEmpty()
   translationAr?: string | null;
 
   /** Audio URL. Pass null to clear; audioCreatedAt is managed automatically. */
   @IsOptional()
-  @IsString()
+  @IsUrl()
   audioFileUrl?: string | null;
 }

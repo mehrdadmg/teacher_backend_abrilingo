@@ -8,33 +8,33 @@ export class UpdateVerbDetailsDto {
 
   @IsOptional()
   @IsString()
-  presentThirdPerson?: string;
+  presentThirdPerson?: string | null;
 
   @IsOptional()
   @IsString()
-  praeteritumThirdPerson?: string;
+  praeteritumThirdPerson?: string | null;
 
   @IsOptional()
   @IsEnum(Auxiliary)
-  perfektAuxiliary?: Auxiliary;
+  perfektAuxiliary?: Auxiliary | null;
 
   @IsOptional()
   @IsString()
-  perfectParticiple?: string;
+  perfectParticiple?: string | null;
 
   @IsOptional()
   @IsString()
-  imperativeDu?: string;
+  imperativeDu?: string | null;
 
   @IsOptional()
   @IsString()
-  imperativeIhr?: string;
+  imperativeIhr?: string | null;
 
   @IsOptional()
   @IsString()
-  imperativeSie?: string;
+  imperativeSie?: string | null;
 
   @IsOptional()
   @IsString()
-  reflexivePronoun?: string;
+  reflexivePronoun?: string | null;
 }

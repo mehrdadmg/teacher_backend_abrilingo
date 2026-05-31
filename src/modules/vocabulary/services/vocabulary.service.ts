@@ -77,7 +77,7 @@ class VocabularyService {
 
     // ── Existing filters ────────────────────────────────────────────────────────
     if (filters.level) qb.andWhere('w.level = :level', { level: filters.level });
-    if (filters.pos)   qb.andWhere('w.part_of_speech = :pos', { pos: filters.pos });
+    if (filters.pos)   qb.andWhere('w.partOfSpeech = :pos', { pos: filters.pos });
     if (filters.q) {
       // Uses the IDX_words_word_trgm GIN index for fast partial umlaut-insensitive search
       qb.andWhere(
@@ -169,10 +169,8 @@ class VocabularyService {
   }
 
   async deleteWord(id: string): Promise<void> {
-    await this.requireWord(id);
-    await this.wordRepo.delete(id);
-    // All child rows (verb_details, examples, audio_files) are removed
-    // by the ON DELETE CASCADE FK constraints in the DB.
+    const result = await this.wordRepo.delete(id);
+    if (!result.affected) this.notFound('Word');
   }
 
   // ── Verb Details ────────────────────────────────────────────────────────────
@@ -237,11 +235,11 @@ class VocabularyService {
     return this.wordRepo.save(word);
   }
 
-  /** Nulls out a single inline translation column and saves. */
+  /** Nulls out a single inline translation column. */
   async clearWordTranslation(wordId: string, lang: LanguageCode): Promise<void> {
-    const word = await this.requireWord(wordId);
-    word[this.langCol[lang]] = null;
-    await this.wordRepo.save(word);
+    const col = this.langCol[lang];
+    const result = await this.wordRepo.update(wordId, { [col]: null } as Partial<Word>);
+    if (!result.affected) this.notFound('Word');
   }
 
   // ── Examples ────────────────────────────────────────────────────────────────
@@ -369,10 +367,8 @@ class VocabularyService {
 
   /** Permanently deletes the example row and all its children via cascade. */
   async deleteExamplePermanently(exId: string): Promise<void> {
-    const example = await this.exRepo.findOne({ where: { id: exId } });
-    if (!example) this.notFound('Example');
-    await this.exRepo.delete(exId);
-    // example_translations, audio_files, and word_examples all cascade via FK constraints
+    const result = await this.exRepo.delete(exId);
+    if (!result.affected) this.notFound('Example');
   }
 
   // ── Audio (inline columns on word / example) ────────────────────────────────

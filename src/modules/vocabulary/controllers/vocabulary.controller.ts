@@ -24,19 +24,21 @@ vocabularyRouter.use(jwtAuthGuard);
 // Role shortcuts
 const adminOrOperator = requireRoles(RoleName.SUPER_ADMIN, RoleName.OPERATOR);
 
-// ── Helper: inline 404 ────────────────────────────────────────────────────────
-function notFound(res: Response, entity = 'Resource'): Response {
-  return res.status(404).json({
-    statusCode: 404,
-    message: `${entity} not found`,
-    error: 'Not Found',
-    timestamp: new Date().toISOString(),
-  });
+// ── Shared query-param parsers ────────────────────────────────────────────────
+function parseDate(v: unknown): Date | undefined {
+  if (!v) return undefined;
+  const d = new Date(v as string);
+  if (isNaN(d.getTime())) {
+    throw Object.assign(new Error(`Invalid date format: "${v}"`), { statusCode: 400 });
+  }
+  return d;
 }
+const parseBool = (v: unknown) => (v === 'true' ? true : undefined);
 
 // ── Validate language code path param ────────────────────────────────────────
-function parseLang(lang: string): LanguageCode | null {
-  return Object.values(LanguageCode).includes(lang as LanguageCode) ? (lang as LanguageCode) : null;
+function parseLang(lang: string): LanguageCode {
+  if (Object.values(LanguageCode).includes(lang as LanguageCode)) return lang as LanguageCode;
+  throw Object.assign(new Error(`Invalid language code: "${lang}"`), { statusCode: 400 });
 }
 
 // ============================================================
@@ -155,9 +157,6 @@ function parseLang(lang: string): LanguageCode | null {
 vocabularyRouter.get(
   '/words',
   asyncHandler(async (req: Request, res: Response) => {
-    const parseDate = (v: unknown) => (v ? new Date(v as string) : undefined);
-    const parseBool = (v: unknown) => (v === 'true' ? true : undefined);
-
     const result = await vocabularyService.listWords({
       level: req.query.level as string | undefined,
       pos: req.query.pos as string | undefined,
@@ -291,7 +290,6 @@ vocabularyRouter.get(
   '/words/:id',
   asyncHandler(async (req: Request, res: Response) => {
     const word = await vocabularyService.getWordById(req.params.id);
-    if (!word) return notFound(res, 'Word');
     return res.json(word);
   }),
 );
@@ -458,8 +456,6 @@ vocabularyRouter.patch(
   validateBody(UpdateWordTranslationDto),
   asyncHandler(async (req: Request, res: Response) => {
     const lang = parseLang(req.params.lang);
-    if (!lang) return notFound(res, 'Language code');
-
     const { translation } = req.body as UpdateWordTranslationDto;
     const word = await vocabularyService.setWordTranslation(req.params.wordId, lang, translation);
     return res.json(word);
@@ -473,8 +469,6 @@ vocabularyRouter.delete(
   adminOrOperator,
   asyncHandler(async (req: Request, res: Response) => {
     const lang = parseLang(req.params.lang);
-    if (!lang) return notFound(res, 'Language code');
-
     await vocabularyService.clearWordTranslation(req.params.wordId, lang);
     return res.status(204).send();
   }),
@@ -754,9 +748,6 @@ vocabularyRouter.post(
 vocabularyRouter.get(
   '/examples',
   asyncHandler(async (req: Request, res: Response) => {
-    const parseDate = (v: unknown) => (v ? new Date(v as string) : undefined);
-    const parseBool = (v: unknown) => (v === 'true' ? true : undefined);
-
     const result = await vocabularyService.listAllExamples({
       q: req.query.q as string | undefined,
       wordId: req.query.wordId as string | undefined,

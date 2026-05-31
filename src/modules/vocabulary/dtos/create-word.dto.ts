@@ -3,6 +3,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUrl,
   ValidateIf,
 } from 'class-validator';
 import { Gender, Level, PartOfSpeech } from '../entities/word.entity';
@@ -32,22 +33,26 @@ export class CreateWordDto {
 
   @IsOptional()
   @IsString()
+  @IsNotEmpty()
   translationFa?: string;
 
   @IsOptional()
   @IsString()
+  @IsNotEmpty()
   translationEn?: string;
 
   @IsOptional()
   @IsString()
+  @IsNotEmpty()
   translationRu?: string;
 
   @IsOptional()
   @IsString()
+  @IsNotEmpty()
   translationAr?: string;
 
   /** Audio file URL. When provided, audioCreatedAt is set automatically. */
   @IsOptional()
-  @IsString()
+  @IsUrl()
   audioFileUrl?: string;
 }
