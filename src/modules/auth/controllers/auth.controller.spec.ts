@@ -147,6 +147,21 @@ describe('POST /api/auth/refresh', () => {
     expect(refreshCookie).toMatch(/Secure/i);
     expect(refreshCookie).toMatch(/SameSite=Strict/i);
   });
+
+  it('returns 401 and clears cookies when the user has a suspended:{id} key in Redis', async () => {
+    const token = signRefreshToken('jti-suspended-user');
+    // First GET = blacklist check (not blacklisted), second GET = suspension check (suspended)
+    (redisClient.get as jest.Mock)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce('1');
+
+    const res = await request(testApp)
+      .post('/api/auth/refresh')
+      .set('Cookie', `refresh_token=${token}`);
+
+    expect(res.status).toBe(401);
+    expect(res.body).toMatchObject({ message: 'Account has been suspended', error: 'Unauthorized' });
+  });
 });
 
 // ─── POST /api/auth/logout ────────────────────────────────────────────────────

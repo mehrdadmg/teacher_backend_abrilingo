@@ -35,3 +35,21 @@ export const config = {
     fromEmail: process.env.RESEND_FROM_EMAIL || 'noreply@deutsch.abri-web.com',
   },
 } as const;
+
+// Fail fast if critical secrets are absent — an empty secret lets anyone forge tokens
+if (process.env.NODE_ENV !== 'test') {
+  const missing = (
+    [
+      ['JWT_ACCESS_SECRET', config.jwt.accessSecret],
+      ['JWT_REFRESH_SECRET', config.jwt.refreshSecret],
+      ['GOOGLE_CLIENT_ID', config.google.clientId],
+      ['GOOGLE_CLIENT_SECRET', config.google.clientSecret],
+    ] as [string, string][]
+  )
+    .filter(([, v]) => !v)
+    .map(([k]) => k);
+
+  if (missing.length > 0) {
+    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+  }
+}

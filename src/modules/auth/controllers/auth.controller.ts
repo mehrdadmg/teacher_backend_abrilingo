@@ -202,6 +202,11 @@ authRouter.post('/refresh', async (req: Request, res: Response) => {
       return apiError(res, 401, 'Refresh token has been revoked', 'Unauthorized');
     }
 
+    if (await tokenService.isUserSuspended(payload.sub)) {
+      tokenService.clearAuthCookies(res);
+      return apiError(res, 401, 'Account has been suspended', 'Unauthorized');
+    }
+
     // Invalidate the consumed refresh token before issuing new ones
     const ttl = payload.exp - Math.floor(Date.now() / 1000);
     await tokenService.blacklistToken(payload.jti, ttl);

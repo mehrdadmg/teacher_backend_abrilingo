@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { QueryFailedError } from 'typeorm';
 import { AppDataSource } from '../../../config/database.config';
 import { resend } from '../../../config/email.config';
 import { config } from '../../../config/env.config';
@@ -40,7 +41,20 @@ class InvitationService {
       expiresAt,
       invitedBy: { id: invitedById },
     });
-    await this.repo.save(invitation);
+
+    try {
+      await this.repo.save(invitation);
+    } catch (saveErr) {
+      // Postgres error 23505 = unique_violation: the partial unique index
+      // (email WHERE is_used = false) caught a concurrent duplicate request
+      if (saveErr instanceof QueryFailedError && (saveErr as QueryFailedError & { code: string }).code === '23505') {
+        throw Object.assign(
+          new Error('An active invitation already exists for this email'),
+          { statusCode: 409 },
+        );
+      }
+      throw saveErr;
+    }
 
     const inviteLink = `${config.clientUrl}/accept-invite?token=${token}`;
     const invitedByName = `${invitedBy.firstName} ${invitedBy.lastName}`.trim();
@@ -53,11 +67,21 @@ class InvitationService {
     });
     if (emailError) {
       // Compensate: remove the invitation so admin can retry cleanly
-      await this.repo.delete(invitation.id);
+      try {
+        await this.repo.delete(invitation.id);
+      } catch (deleteErr) {
+        logger.error({
+          message: 'CRITICAL: invitation orphaned after email failure — manual cleanup required',
+          invitationId: invitation.id,
+          email,
+          error: deleteErr,
+        });
+      }
       logger.error({ message: 'Failed to send invitation email', email, error: emailError });
-      const err = new Error('Failed to send invitation email — please try again');
-      Object.assign(err, { statusCode: 502 });
-      throw err;
+      throw Object.assign(
+        new Error('Failed to send invitation email — please try again'),
+        { statusCode: 502 },
+      );
     }
 
     logger.info({ message: 'Invitation sent', email, invitedById });

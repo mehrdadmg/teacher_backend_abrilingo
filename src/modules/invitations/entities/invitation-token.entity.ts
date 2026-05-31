@@ -3,11 +3,13 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
+  Index,
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 
+@Index(['email', 'isUsed']) // mirrors idx_invitation_tokens_email_is_used (created in migration)
 @Entity('invitation_tokens')
 export class InvitationToken {
   @PrimaryGeneratedColumn('uuid')
