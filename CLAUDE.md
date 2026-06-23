@@ -97,6 +97,35 @@ All errors must match: `{ statusCode, message, error, timestamp }` — enforced 
 
 Use `class-validator` + `class-transformer` on every DTO — never validate manually in controllers.
 
+### Swagger / OpenAPI
+
+**Libraries:** `swagger-jsdoc` v6 + `swagger-ui-express`. Swagger UI available at `GET /api/docs`, raw OpenAPI 3.0.3 JSON at `GET /api/docs.json`. Enabled in dev/staging; production requires `ENABLE_SWAGGER=true`.
+
+**Two-layer documentation model:**
+- **Component layer** (`src/config/swagger.config.ts`) — all reusable `components.schemas` and `components.responses` live here. No inline schema repetition in endpoint annotations.
+- **Endpoint layer** (each `*controller.ts`) — `@openapi` JSDoc blocks (not `@swagger`) above each route handler define path, parameters, requestBody, and responses.
+
+**Security:** A single `cookieAuth` security scheme is declared globally — it documents the `access_token` HttpOnly cookie set after Google OAuth. Endpoints that need a *different* cookie (e.g. `POST /api/auth/refresh` reads `refresh_token`) must document it as an explicit `parameters: [{in: cookie}]` block — not via `cookieAuth`.
+
+**Every endpoint annotation must include:**
+- `tags` — one of: `Auth`, `Invitations`, `Users`, `Vocabulary`, `Health`
+- `security: [{cookieAuth: []}]` — on all authenticated routes
+- `responses` — every applicable code from: `200/201/204`, `400`, `401`, `403`, `404`, `409`, `429`, `500`. Use `$ref: '#/components/responses/<Name>'` for all error codes; never inline error schemas.
+
+**Component response refs** (all defined in `swagger.config.ts`):
+`BadRequest` (400), `ValidationError` (400), `Unauthorized` (401), `Forbidden` (403), `NotFound` (404), `Conflict` (409), `TooManyRequests` (429), `InternalServerError` (500)
+
+**Schema quality rules (enforced, do not regress):**
+- Every response schema must have a `required: [...]` array listing always-present fields.
+- Every schema must have a top-level `description`.
+- Every property must have a `description` and a realistic `example` (except `$ref` properties).
+- Enum values must be explicitly listed in `enum: [...]`.
+- Paginated list endpoints use named schemas (`PaginatedWords`, `PaginatedExamples`) — not inline objects.
+
+**Adding a new endpoint:** write the `@openapi` JSDoc block directly above the `router.method(...)` call. If the response body type is new, add its schema to `swagger.config.ts` under `components.schemas` first, then reference it with `$ref`.
+
+**Verifying docs:** after changes, run `npm run dev` and hit `GET /api/docs.json` — check that no `$ref` is unresolved and every non-redirect operation has a `'500'` response entry.
+
 ### Vocabulary Module
 
 The vocabulary module manages German word entries across **three main tables** (`words`, `examples`, `verb_details`) plus one join table (`word_examples`). Translations and audio are stored as inline columns — there are no separate translation or audio tables.

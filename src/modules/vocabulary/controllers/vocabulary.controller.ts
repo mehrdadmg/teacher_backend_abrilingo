@@ -150,8 +150,14 @@ function parseLang(lang: string): LanguageCode {
  *     responses:
  *       '200':
  *         description: Paginated word list
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/PaginatedWords'
  *       '401':
  *         $ref: '#/components/responses/Unauthorized'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
  */
 // GET /api/vocabulary/words
 vocabularyRouter.get(
@@ -247,6 +253,8 @@ vocabularyRouter.get(
  *         $ref: '#/components/responses/Forbidden'
  *       '409':
  *         $ref: '#/components/responses/Conflict'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
  */
 // POST /api/vocabulary/words
 vocabularyRouter.post(
@@ -277,13 +285,20 @@ vocabularyRouter.post(
  *         schema:
  *           type: string
  *           format: uuid
+ *         description: UUID of the vocabulary word to retrieve.
  *     responses:
  *       '200':
- *         description: Full word object with all relations
+ *         description: Full word object with verb details, translations, examples, and audio
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/WordWithRelations'
  *       '401':
  *         $ref: '#/components/responses/Unauthorized'
  *       '404':
  *         $ref: '#/components/responses/NotFound'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
  */
 // GET /api/vocabulary/words/:id
 vocabularyRouter.get(
@@ -352,6 +367,8 @@ vocabularyRouter.get(
  *         $ref: '#/components/responses/Forbidden'
  *       '404':
  *         $ref: '#/components/responses/NotFound'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
  */
 // PATCH /api/vocabulary/words/:id
 vocabularyRouter.patch(
@@ -389,6 +406,8 @@ vocabularyRouter.patch(
  *         $ref: '#/components/responses/Forbidden'
  *       '404':
  *         $ref: '#/components/responses/NotFound'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
  */
 // DELETE /api/vocabulary/words/:id
 vocabularyRouter.delete(
@@ -404,6 +423,111 @@ vocabularyRouter.delete(
 // VERB DETAILS  (sub-resource of word)
 // ============================================================
 
+/**
+ * @openapi
+ * /api/vocabulary/words/{wordId}/verb-details:
+ *   post:
+ *     tags: [Vocabulary]
+ *     summary: Add verb conjugation details to a word
+ *     description: |
+ *       Creates the conjugation record for a verb. The word must exist and have
+ *       `partOfSpeech: verb`. Returns 409 if verb details already exist — use PATCH to update.
+ *       Requires SUPER_ADMIN or OPERATOR.
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: wordId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/CreateVerbDetailsDto'
+ *           example:
+ *             isRegular: false
+ *             presentThirdPerson: sieht
+ *             praeteritumThirdPerson: sah
+ *             perfektAuxiliary: haben
+ *             perfectParticiple: gesehen
+ *             imperativeDu: sieh
+ *             imperativeIhr: seht
+ *             imperativeSie: sehen Sie
+ *     responses:
+ *       '201':
+ *         description: Created verb details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/VerbDetails'
+ *       '400':
+ *         $ref: '#/components/responses/BadRequest'
+ *       '401':
+ *         $ref: '#/components/responses/Unauthorized'
+ *       '403':
+ *         $ref: '#/components/responses/Forbidden'
+ *       '404':
+ *         $ref: '#/components/responses/NotFound'
+ *       '409':
+ *         $ref: '#/components/responses/Conflict'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
+ *   patch:
+ *     tags: [Vocabulary]
+ *     summary: Update verb conjugation details
+ *     description: |
+ *       Partially updates the conjugation record for a verb. Only the fields present
+ *       in the request body are changed. Pass `null` for a field to clear it.
+ *       Requires SUPER_ADMIN or OPERATOR.
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: wordId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/UpdateVerbDetailsDto'
+ *           examples:
+ *             markRegular:
+ *               summary: Mark as regular verb
+ *               value:
+ *                 isRegular: true
+ *             updateConjugation:
+ *               summary: Update specific conjugation forms
+ *               value:
+ *                 presentThirdPerson: läuft
+ *                 praeteritumThirdPerson: lief
+ *                 perfektAuxiliary: sein
+ *                 perfectParticiple: gelaufen
+ *             clearReflexive:
+ *               summary: Clear reflexive pronoun
+ *               value:
+ *                 reflexivePronoun: null
+ *     responses:
+ *       '200':
+ *         description: Updated verb details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/VerbDetails'
+ *       '400':
+ *         $ref: '#/components/responses/BadRequest'
+ *       '401':
+ *         $ref: '#/components/responses/Unauthorized'
+ *       '403':
+ *         $ref: '#/components/responses/Forbidden'
+ *       '404':
+ *         $ref: '#/components/responses/NotFound'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
+ */
 // POST /api/vocabulary/words/:wordId/verb-details
 vocabularyRouter.post(
   '/words/:wordId/verb-details',
@@ -430,6 +554,52 @@ vocabularyRouter.patch(
 // WORD TRANSLATIONS  (inline columns on the word row)
 // ============================================================
 
+/**
+ * @openapi
+ * /api/vocabulary/words/{wordId}/translations:
+ *   post:
+ *     tags: [Vocabulary]
+ *     summary: Add a translation to a word
+ *     description: |
+ *       Sets one translation language on the word row. Returns **409** if that language
+ *       already has a value — use `PATCH /translations/{lang}` to overwrite.
+ *       Requires SUPER_ADMIN or OPERATOR.
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: wordId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/CreateWordTranslationDto'
+ *           example:
+ *             languageCode: en
+ *             translation: table
+ *     responses:
+ *       '201':
+ *         description: Updated word object with the new translation set
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Word'
+ *       '400':
+ *         $ref: '#/components/responses/BadRequest'
+ *       '401':
+ *         $ref: '#/components/responses/Unauthorized'
+ *       '403':
+ *         $ref: '#/components/responses/Forbidden'
+ *       '404':
+ *         $ref: '#/components/responses/NotFound'
+ *       '409':
+ *         $ref: '#/components/responses/Conflict'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
+ */
 // POST /api/vocabulary/words/:wordId/translations
 // Body: { languageCode, translation } — returns 409 if that language is already set.
 vocabularyRouter.post(
@@ -448,6 +618,86 @@ vocabularyRouter.post(
   }),
 );
 
+/**
+ * @openapi
+ * /api/vocabulary/words/{wordId}/translations/{lang}:
+ *   patch:
+ *     tags: [Vocabulary]
+ *     summary: Update a word translation
+ *     description: |
+ *       Overwrites the translation for the specified language regardless of whether
+ *       a value already exists. Requires SUPER_ADMIN or OPERATOR.
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: wordId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *       - in: path
+ *         name: lang
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [fa, en, ru, ar]
+ *         description: Language code of the translation to update
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/UpdateWordTranslationDto'
+ *           example:
+ *             translation: table
+ *     responses:
+ *       '200':
+ *         description: Updated word object
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Word'
+ *       '400':
+ *         $ref: '#/components/responses/BadRequest'
+ *       '401':
+ *         $ref: '#/components/responses/Unauthorized'
+ *       '403':
+ *         $ref: '#/components/responses/Forbidden'
+ *       '404':
+ *         $ref: '#/components/responses/NotFound'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
+ *   delete:
+ *     tags: [Vocabulary]
+ *     summary: Clear a word translation
+ *     description: |
+ *       Sets the specified language's translation column to NULL on the word row.
+ *       Requires SUPER_ADMIN or OPERATOR.
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: wordId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *       - in: path
+ *         name: lang
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [fa, en, ru, ar]
+ *         description: Language code of the translation to clear
+ *     responses:
+ *       '204':
+ *         description: Translation cleared
+ *       '401':
+ *         $ref: '#/components/responses/Unauthorized'
+ *       '403':
+ *         $ref: '#/components/responses/Forbidden'
+ *       '404':
+ *         $ref: '#/components/responses/NotFound'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
+ */
 // PATCH /api/vocabulary/words/:wordId/translations/:lang
 // Body: { translation } — always overwrites.
 vocabularyRouter.patch(
@@ -529,6 +779,8 @@ vocabularyRouter.patch(
  *         $ref: '#/components/responses/Forbidden'
  *       '404':
  *         $ref: '#/components/responses/NotFound'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
  */
 // DELETE /api/vocabulary/words/:wordId/examples/:exId  — detach only
 vocabularyRouter.delete(
@@ -572,6 +824,8 @@ vocabularyRouter.delete(
  *         $ref: '#/components/responses/NotFound'
  *       '409':
  *         $ref: '#/components/responses/Conflict'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
  */
 // POST /api/vocabulary/words/:wordId/examples/:exId/link
 vocabularyRouter.post(
@@ -596,7 +850,10 @@ vocabularyRouter.post(
  *     description: |
  *       Creates a standalone German example sentence (not yet linked to any word).
  *       Use `POST /api/vocabulary/words/{wordId}/examples/{exId}/link` to associate
- *       it with one or more words afterwards. Requires SUPER_ADMIN or OPERATOR.
+ *       it with one or more words afterwards.
+ *       To add audio, first link the example to a word, then use
+ *       `PUT /api/vocabulary/words/{wordId}/examples/{exId}/audio`.
+ *       Requires SUPER_ADMIN or OPERATOR.
  *     security:
  *       - cookieAuth: []
  *     requestBody:
@@ -618,6 +875,8 @@ vocabularyRouter.post(
  *         $ref: '#/components/responses/Unauthorized'
  *       '403':
  *         $ref: '#/components/responses/Forbidden'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
  */
 // POST /api/vocabulary/examples
 vocabularyRouter.post(
@@ -726,23 +985,11 @@ vocabularyRouter.post(
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 data:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/Example'
- *                 total:
- *                   type: integer
- *                   example: 42
- *                 page:
- *                   type: integer
- *                   example: 1
- *                 limit:
- *                   type: integer
- *                   example: 20
+ *               $ref: '#/components/schemas/PaginatedExamples'
  *       '401':
  *         $ref: '#/components/responses/Unauthorized'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
  */
 // GET /api/vocabulary/examples
 vocabularyRouter.get(
@@ -791,6 +1038,8 @@ vocabularyRouter.get(
  *         $ref: '#/components/responses/Unauthorized'
  *       '404':
  *         $ref: '#/components/responses/NotFound'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
  *   patch:
  *     tags: [Vocabulary]
  *     summary: Update an example
@@ -841,6 +1090,8 @@ vocabularyRouter.get(
  *         $ref: '#/components/responses/Forbidden'
  *       '404':
  *         $ref: '#/components/responses/NotFound'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
  *   delete:
  *     tags: [Vocabulary]
  *     summary: Permanently delete an example sentence
@@ -866,6 +1117,8 @@ vocabularyRouter.get(
  *         $ref: '#/components/responses/Forbidden'
  *       '404':
  *         $ref: '#/components/responses/NotFound'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
  */
 // DELETE /api/vocabulary/examples/:exId  — permanent delete
 vocabularyRouter.delete(
@@ -881,6 +1134,76 @@ vocabularyRouter.delete(
 // AUDIO  (inline on word / example — one slot each)
 // ============================================================
 
+/**
+ * @openapi
+ * /api/vocabulary/words/{wordId}/audio:
+ *   put:
+ *     tags: [Vocabulary]
+ *     summary: Set word audio
+ *     description: |
+ *       Sets (or replaces) the audio file URL on the word and records `audioCreatedAt`
+ *       automatically. There is one audio slot per word. Requires SUPER_ADMIN or OPERATOR.
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: wordId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/SetAudioDto'
+ *           example:
+ *             fileUrl: https://cdn.abrilingo.com/audio/de/words/tisch_ai.mp3
+ *     responses:
+ *       '200':
+ *         description: Updated word object with the new audioFileUrl set
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Word'
+ *       '400':
+ *         $ref: '#/components/responses/BadRequest'
+ *       '401':
+ *         $ref: '#/components/responses/Unauthorized'
+ *       '403':
+ *         $ref: '#/components/responses/Forbidden'
+ *       '404':
+ *         $ref: '#/components/responses/NotFound'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
+ *   delete:
+ *     tags: [Vocabulary]
+ *     summary: Clear word audio
+ *     description: |
+ *       Sets `audioFileUrl` and `audioCreatedAt` to NULL on the word row.
+ *       Returns the updated word object. Requires SUPER_ADMIN or OPERATOR.
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: wordId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       '200':
+ *         description: Updated word object (audioFileUrl is now null)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Word'
+ *       '401':
+ *         $ref: '#/components/responses/Unauthorized'
+ *       '403':
+ *         $ref: '#/components/responses/Forbidden'
+ *       '404':
+ *         $ref: '#/components/responses/NotFound'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
+ */
 // PUT /api/vocabulary/words/:wordId/audio  — set (or replace) word audio
 vocabularyRouter.put(
   '/words/:wordId/audio',
@@ -902,6 +1225,86 @@ vocabularyRouter.delete(
   }),
 );
 
+/**
+ * @openapi
+ * /api/vocabulary/words/{wordId}/examples/{exId}/audio:
+ *   put:
+ *     tags: [Vocabulary]
+ *     summary: Set example audio
+ *     description: |
+ *       Sets (or replaces) the audio file URL on the example and records `audioCreatedAt`
+ *       automatically. Verifies the example is linked to the given word.
+ *       There is one audio slot per example. Requires SUPER_ADMIN or OPERATOR.
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: wordId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *       - in: path
+ *         name: exId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/SetAudioDto'
+ *           example:
+ *             fileUrl: https://cdn.abrilingo.com/audio/de/examples/tisch_ex1.mp3
+ *     responses:
+ *       '200':
+ *         description: Updated example object with the new audioFileUrl set
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Example'
+ *       '400':
+ *         $ref: '#/components/responses/BadRequest'
+ *       '401':
+ *         $ref: '#/components/responses/Unauthorized'
+ *       '403':
+ *         $ref: '#/components/responses/Forbidden'
+ *       '404':
+ *         $ref: '#/components/responses/NotFound'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
+ *   delete:
+ *     tags: [Vocabulary]
+ *     summary: Clear example audio
+ *     description: |
+ *       Sets `audioFileUrl` and `audioCreatedAt` to NULL on the example row.
+ *       Verifies the example is linked to the given word. Returns the updated example.
+ *       Requires SUPER_ADMIN or OPERATOR.
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: wordId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *       - in: path
+ *         name: exId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       '200':
+ *         description: Updated example object (audioFileUrl is now null)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Example'
+ *       '401':
+ *         $ref: '#/components/responses/Unauthorized'
+ *       '403':
+ *         $ref: '#/components/responses/Forbidden'
+ *       '404':
+ *         $ref: '#/components/responses/NotFound'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
+ */
 // PUT /api/vocabulary/words/:wordId/examples/:exId/audio  — set example audio
 vocabularyRouter.put(
   '/words/:wordId/examples/:exId/audio',

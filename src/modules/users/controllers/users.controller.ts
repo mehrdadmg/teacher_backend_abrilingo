@@ -43,6 +43,8 @@ function notFound(res: Response): Response {
  *         $ref: '#/components/responses/Unauthorized'
  *       '403':
  *         $ref: '#/components/responses/Forbidden'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
  */
 // GET /api/users
 usersRouter.get(
@@ -75,6 +77,8 @@ usersRouter.get(
  *         $ref: '#/components/responses/Unauthorized'
  *       '403':
  *         $ref: '#/components/responses/Forbidden'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
  */
 // GET /api/users/pending
 usersRouter.get(
@@ -115,6 +119,8 @@ usersRouter.get(
  *         $ref: '#/components/responses/Forbidden'
  *       '404':
  *         $ref: '#/components/responses/NotFound'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
  */
 // GET /api/users/:id
 usersRouter.get(
@@ -159,6 +165,8 @@ usersRouter.get(
  *         $ref: '#/components/responses/Forbidden'
  *       '404':
  *         $ref: '#/components/responses/NotFound'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
  */
 // PATCH /api/users/:id/activate
 usersRouter.patch(
@@ -203,6 +211,8 @@ usersRouter.patch(
  *         $ref: '#/components/responses/Forbidden'
  *       '404':
  *         $ref: '#/components/responses/NotFound'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
  */
 // PATCH /api/users/:id/suspend
 usersRouter.patch(

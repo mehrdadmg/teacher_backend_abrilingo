@@ -168,6 +168,15 @@ const INVITATION_CODE_MAP: Record<string, string> = {
  *       `jti` is blacklisted in Redis immediately — reusing a rotated token returns 401.
  *       Requires the `refresh_token` HttpOnly cookie (not the `access_token` cookie).
  *       New tokens are delivered in `Set-Cookie` response headers.
+ *     parameters:
+ *       - in: cookie
+ *         name: refresh_token
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: >
+ *           HttpOnly refresh token cookie issued at login. The access_token cookie is NOT
+ *           read by this endpoint. A new refresh_token cookie replaces the old one in the response.
  *     responses:
  *       '200':
  *         description: Tokens rotated successfully
@@ -184,6 +193,8 @@ const INVITATION_CODE_MAP: Record<string, string> = {
  *               message: Tokens refreshed successfully
  *       '401':
  *         $ref: '#/components/responses/Unauthorized'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
  */
 // ─── Refresh Token Rotation ───────────────────────────────────────────────────
 // Issues a fresh access + refresh token pair. The old refresh token's jti is
@@ -245,6 +256,8 @@ authRouter.post('/refresh', async (req: Request, res: Response) => {
  *               message: Logged out successfully
  *       '401':
  *         $ref: '#/components/responses/Unauthorized'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
  */
 // ─── Logout ──────────────────────────────────────────────────────────────────
 // Blacklists both tokens so they can't be used even before expiry.

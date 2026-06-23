@@ -33,12 +33,23 @@ async function seed(): Promise<void> {
   const wordRepo = AppDataSource.getRepository(Word);
 
   // ── Idempotency guard ───────────────────────────────────────────────────────
-  const existing = await wordRepo.findOne({ where: { id: ID.TISCH } });
-  if (existing) {
+  // Both seed words must be present; a partial DB state (e.g. sehen deleted
+  // after a previous run) should trigger a re-seed of the missing records.
+  const [existingTisch, existingSehen] = await Promise.all([
+    wordRepo.findOne({ where: { id: ID.TISCH } }),
+    wordRepo.findOne({ where: { id: ID.SEHEN } }),
+  ]);
+  if (existingTisch && existingSehen) {
     console.log('[seed:vocabulary] Sample data already present — nothing to do.');
     console.log(`  Tisch : ${ID.TISCH}`);
     console.log(`  sehen : ${ID.SEHEN}`);
     return;
+  }
+  if (existingTisch || existingSehen) {
+    console.log(
+      '[seed:vocabulary] Partial seed detected — re-seeding missing records…\n' +
+      `  Tisch present: ${Boolean(existingTisch)}   sehen present: ${Boolean(existingSehen)}`,
+    );
   }
 
   console.log(
@@ -145,7 +156,8 @@ async function seed(): Promise<void> {
     // ── 3b. word_examples join table rows ────────────────────────────────────
     await qr.query(
       `INSERT INTO word_examples (word_id, example_id) VALUES
-        ($1, $3), ($1, $4), ($2, $5), ($2, $6)`,
+        ($1, $3), ($1, $4), ($2, $5), ($2, $6)
+       ON CONFLICT DO NOTHING`,
       [ID.TISCH, ID.SEHEN, ID.EX_TISCH_1, ID.EX_TISCH_2, ID.EX_SEHEN_1, ID.EX_SEHEN_2],
     );
 

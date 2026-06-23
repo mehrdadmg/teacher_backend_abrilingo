@@ -62,6 +62,8 @@ invitationRouter.use(inviteRateLimit);
  *         $ref: '#/components/responses/Conflict'
  *       '429':
  *         $ref: '#/components/responses/TooManyRequests'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
  */
 // POST /api/invitations — create & send invite
 invitationRouter.post(
@@ -103,6 +105,8 @@ invitationRouter.post(
  *         $ref: '#/components/responses/Forbidden'
  *       '429':
  *         $ref: '#/components/responses/TooManyRequests'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
  */
 // GET /api/invitations — list all invitations
 invitationRouter.get(
@@ -146,6 +150,8 @@ invitationRouter.get(
  *         $ref: '#/components/responses/Conflict'
  *       '429':
  *         $ref: '#/components/responses/TooManyRequests'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
  */
 // DELETE /api/invitations/:id — delete an unused invitation
 invitationRouter.delete(
