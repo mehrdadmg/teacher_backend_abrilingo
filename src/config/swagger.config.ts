@@ -41,6 +41,7 @@ const swaggerOptions: Options = {
       { name: 'Users', description: 'User management (SUPER_ADMIN / OPERATOR)' },
       { name: 'Health', description: 'Server liveness probe' },
       { name: 'Vocabulary', description: 'German vocabulary management (words, translations, examples, audio)' },
+      { name: 'Lessons', description: 'Lesson management — group words and their scoped examples into lessons' },
     ],
     components: {
       securitySchemes: {
@@ -286,6 +287,82 @@ const swaggerOptions: Options = {
         },
 
         // ── Vocabulary: Examples ───────────────────────────────────────────────
+        WordExampleEntry: {
+          type: 'object',
+          description:
+            'An example sentence linked to a word, annotated with the `word_examples.id` ' +
+            'SERIAL key needed to scope the example into a lesson via ' +
+            '`POST /api/lessons/{lessonId}/words/{lessonWordId}/examples`.',
+          required: ['wordExampleId', 'id', 'sentence', 'createdAt', 'updatedAt'],
+          properties: {
+            wordExampleId: {
+              type: 'integer',
+              description: 'Auto-assigned id of the word_examples join-table row. Pass this as `wordExampleId` when adding to a lesson word.',
+              example: 42,
+            },
+            id: {
+              type: 'string',
+              format: 'uuid',
+              description: 'UUID primary key of the example sentence.',
+              example: 'd4e5f6a7-b8c9-0123-def4-567890abcdef',
+            },
+            sentence: {
+              type: 'string',
+              description: 'The German example sentence.',
+              example: 'Der Tisch ist aus Holz.',
+            },
+            translationFa: {
+              type: 'string',
+              nullable: true,
+              description: 'Persian (Farsi) translation. Null if not set.',
+              example: 'میز از چوب است.',
+            },
+            translationEn: {
+              type: 'string',
+              nullable: true,
+              description: 'English translation. Null if not set.',
+              example: 'The table is made of wood.',
+            },
+            translationRu: {
+              type: 'string',
+              nullable: true,
+              description: 'Russian translation. Null if not set.',
+              example: 'Стол сделан из дерева.',
+            },
+            translationAr: {
+              type: 'string',
+              nullable: true,
+              description: 'Arabic translation. Null if not set.',
+              example: 'الطاولة مصنوعة من الخشب.',
+            },
+            audioFileUrl: {
+              type: 'string',
+              format: 'uri',
+              nullable: true,
+              description: 'URL to the example audio file. Null if not set.',
+              example: 'https://cdn.abrilingo.com/audio/de/examples/tisch_ex1.mp3',
+            },
+            audioCreatedAt: {
+              type: 'string',
+              format: 'date-time',
+              nullable: true,
+              description: 'When the example audio was attached. Null if no audio.',
+              example: '2026-02-05T10:00:00.000Z',
+            },
+            createdAt: {
+              type: 'string',
+              format: 'date-time',
+              description: 'When this example was created.',
+              example: '2026-01-15T08:00:00.000Z',
+            },
+            updatedAt: {
+              type: 'string',
+              format: 'date-time',
+              description: 'When this example was last updated.',
+              example: '2026-03-10T12:30:00.000Z',
+            },
+          },
+        },
         Example: {
           type: 'object',
           description: 'A German example sentence associated with one or more vocabulary words.',
@@ -437,6 +514,29 @@ const swaggerOptions: Options = {
         },
 
         // ── Vocabulary: Composed / Paginated ──────────────────────────────────
+        ExampleInWord: {
+          description:
+            'An example sentence as returned within a word context. Identical to Example ' +
+            'but includes `wordExampleId` — the integer id of the word_examples join row. ' +
+            'Use this value as `wordExampleId` when scoping the example to a lesson word via ' +
+            '`POST /api/lessons/{lessonId}/words/{lessonWordId}/examples`.',
+          allOf: [
+            { $ref: '#/components/schemas/Example' },
+            {
+              type: 'object',
+              required: ['wordExampleId'],
+              properties: {
+                wordExampleId: {
+                  type: 'integer',
+                  description:
+                    'Integer primary key of the word_examples join-table row. ' +
+                    'Required by the lessons API to scope this example to a lesson word.',
+                  example: 3,
+                },
+              },
+            },
+          ],
+        },
         WordWithRelations: {
           description: 'Full word object including its verb conjugation details and linked example sentences.',
           allOf: [
@@ -451,8 +551,10 @@ const swaggerOptions: Options = {
                 },
                 examples: {
                   type: 'array',
-                  description: 'Example sentences linked to this word via the word_examples join table.',
-                  items: { $ref: '#/components/schemas/Example' },
+                  description:
+                    'Example sentences linked to this word. Each item includes `wordExampleId` ' +
+                    '(the word_examples join-table id) needed for the lessons scoping API.',
+                  items: { $ref: '#/components/schemas/ExampleInWord' },
                 },
               },
             },
@@ -961,6 +1063,173 @@ const swaggerOptions: Options = {
               format: 'uri',
               description: 'Full URL or storage path to the audio file (mp3 / ogg / wav).',
               example: 'https://cdn.abrilingo.com/audio/de/words/tisch_ai.mp3',
+            },
+          },
+        },
+
+        // ── Lessons ────────────────────────────────────────────────────────────
+        LessonList: {
+          type: 'array',
+          description: 'All lessons ordered by id ascending.',
+          items: {
+            $ref: '#/components/schemas/Lesson',
+          },
+        },
+        UpdateLessonDto: {
+          type: 'object',
+          description: 'Request body for partially updating a lesson. At least one field should be provided.',
+          properties: {
+            title: {
+              type: 'string',
+              description: 'New lesson title.',
+              example: 'Advanced Greetings',
+            },
+            level: {
+              type: 'string',
+              enum: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
+              description: 'New CEFR level.',
+              example: 'A2',
+            },
+          },
+        },
+        CreateLessonDto: {
+          type: 'object',
+          description: 'Request body for creating a new lesson.',
+          required: ['title', 'level'],
+          properties: {
+            title: {
+              type: 'string',
+              description: 'Human-readable lesson title.',
+              example: 'Greetings & Introductions',
+            },
+            level: {
+              type: 'string',
+              enum: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
+              description: 'CEFR level this lesson targets.',
+              example: 'A1',
+            },
+          },
+        },
+        AddWordToLessonDto: {
+          type: 'object',
+          description: 'Request body for adding a vocabulary word to a lesson.',
+          required: ['wordId'],
+          properties: {
+            wordId: {
+              type: 'string',
+              format: 'uuid',
+              description: 'UUID of the vocabulary word to add.',
+              example: '550e8400-e29b-41d4-a716-446655440000',
+            },
+          },
+        },
+        AddExampleToLessonWordDto: {
+          type: 'object',
+          description: 'Request body for scoping a word_examples row to a lesson word.',
+          required: ['wordExampleId'],
+          properties: {
+            wordExampleId: {
+              type: 'integer',
+              minimum: 1,
+              description:
+                'The integer `wordExampleId` exposed on each example item returned by ' +
+                '`GET /api/vocabulary/words/{id}` (see `ExampleInWord` schema). ' +
+                'It identifies which word_examples join-table row to scope into this lesson.',
+              example: 3,
+            },
+          },
+        },
+        Lesson: {
+          type: 'object',
+          description: 'A lesson grouping vocabulary words at a given CEFR level.',
+          required: ['id', 'title', 'level'],
+          properties: {
+            id: {
+              type: 'integer',
+              description: 'Auto-assigned lesson ID.',
+              example: 1,
+            },
+            title: {
+              type: 'string',
+              description: 'Human-readable lesson title.',
+              example: 'Greetings & Introductions',
+            },
+            level: {
+              type: 'string',
+              enum: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
+              description: 'CEFR level this lesson targets.',
+              example: 'A1',
+            },
+          },
+        },
+        LessonWord: {
+          type: 'object',
+          description: 'A lesson_words row linking a lesson to a vocabulary word.',
+          required: ['id', 'lessonId', 'wordId'],
+          properties: {
+            id: {
+              type: 'integer',
+              description: 'Auto-assigned lesson_word ID. Required when scoping examples.',
+              example: 7,
+            },
+            lessonId: {
+              type: 'integer',
+              description: 'ID of the parent lesson.',
+              example: 1,
+            },
+            wordId: {
+              type: 'string',
+              format: 'uuid',
+              description: 'UUID of the linked vocabulary word.',
+              example: '550e8400-e29b-41d4-a716-446655440000',
+            },
+          },
+        },
+        LessonDetail: {
+          type: 'object',
+          description: 'Full lesson payload including words and their lesson-scoped examples.',
+          required: ['id', 'title', 'level', 'words'],
+          properties: {
+            id: {
+              type: 'integer',
+              description: 'Lesson ID.',
+              example: 1,
+            },
+            title: {
+              type: 'string',
+              description: 'Lesson title.',
+              example: 'Greetings & Introductions',
+            },
+            level: {
+              type: 'string',
+              enum: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
+              description: 'CEFR level.',
+              example: 'A1',
+            },
+            words: {
+              type: 'array',
+              description: 'Words in this lesson, each with only the examples scoped to it within this lesson.',
+              items: {
+                type: 'object',
+                required: ['lessonWordId', 'word', 'examples'],
+                properties: {
+                  lessonWordId: {
+                    type: 'integer',
+                    description: 'lesson_words.id for this entry.',
+                    example: 7,
+                  },
+                  word: {
+                    $ref: '#/components/schemas/Word',
+                  },
+                  examples: {
+                    type: 'array',
+                    description: 'Examples scoped to this word within the lesson (subset of the word\'s global examples).',
+                    items: {
+                      $ref: '#/components/schemas/Example',
+                    },
+                  },
+                },
+              },
             },
           },
         },

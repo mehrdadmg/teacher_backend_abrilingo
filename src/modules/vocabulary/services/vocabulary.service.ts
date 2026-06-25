@@ -145,6 +145,18 @@ class VocabularyService {
       relations: ['verbDetails', 'examples'],
     });
     if (!word) this.notFound('Word');
+
+    // Enrich each example with its word_examples.id so callers can use it
+    // when scoping examples to a lesson word (POST /api/lessons/.../examples).
+    const weRows: { id: number; exampleId: string }[] = await AppDataSource.query(
+      `SELECT id, example_id AS "exampleId" FROM word_examples WHERE word_id = $1`,
+      [id],
+    );
+    const weIdByExampleId = new Map(weRows.map((r) => [r.exampleId, r.id]));
+    word!.examples.forEach((ex) => {
+      (ex as any).wordExampleId = weIdByExampleId.get(ex.id) ?? null;
+    });
+
     return word!;
   }
 
@@ -250,6 +262,45 @@ class VocabularyService {
    * Note: no trigram index on examples.sentence yet — add a GIN index
    *       migration if full-text search performance becomes a concern.
    */
+  /**
+   * Returns all examples linked to a word, each annotated with the
+   * word_examples.id (SERIAL) required to scope examples into a lesson.
+   */
+  async listWordExamples(wordId: string): Promise<Array<{
+    wordExampleId: number;
+    id: string;
+    sentence: string;
+    translationFa: string | null;
+    translationEn: string | null;
+    translationRu: string | null;
+    translationAr: string | null;
+    audioFileUrl: string | null;
+    audioCreatedAt: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }>> {
+    await this.requireWord(wordId);
+    return AppDataSource.query(
+      `SELECT
+         we.id            AS "wordExampleId",
+         e.id,
+         e.sentence,
+         e.translation_fa AS "translationFa",
+         e.translation_en AS "translationEn",
+         e.translation_ru AS "translationRu",
+         e.translation_ar AS "translationAr",
+         e.audio_file_url AS "audioFileUrl",
+         e.audio_created_at AS "audioCreatedAt",
+         e.created_at     AS "createdAt",
+         e.updated_at     AS "updatedAt"
+       FROM   word_examples we
+       JOIN   examples e ON e.id = we.example_id
+       WHERE  we.word_id = $1
+       ORDER  BY e.created_at DESC`,
+      [wordId],
+    );
+  }
+
   async listAllExamples(filters: {
     q?:                  string;
     wordId?:             string;

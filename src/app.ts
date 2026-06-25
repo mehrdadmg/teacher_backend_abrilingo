@@ -9,6 +9,7 @@ import { authRouter } from './modules/auth/controllers/auth.controller';
 import { invitationRouter } from './modules/invitations/controllers/invitation.controller';
 import { usersRouter } from './modules/users/controllers/users.controller';
 import { vocabularyRouter } from './modules/vocabulary/controllers/vocabulary.controller';
+import { lessonsRouter } from './modules/lessons/controllers/lessons.controller';
 import { globalExceptionFilter } from './common/filters/global-exception.filter';
 
 registerGoogleStrategy();
@@ -46,6 +47,7 @@ export function createApp(): Application {
   app.use('/api/invitations', invitationRouter);
   app.use('/api/users', usersRouter);
   app.use('/api/vocabulary', vocabularyRouter);
+  app.use('/api/lessons', lessonsRouter);
 
   // ─── Swagger UI (dev/staging always; prod only if ENABLE_SWAGGER=true) ──────
   // Uses require() so swagger modules are not loaded in production when the flag

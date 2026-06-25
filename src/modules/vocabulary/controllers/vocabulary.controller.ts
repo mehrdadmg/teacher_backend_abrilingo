@@ -750,6 +750,56 @@ vocabularyRouter.patch(
 
 /**
  * @openapi
+ * /api/vocabulary/words/{wordId}/examples:
+ *   get:
+ *     tags: [Vocabulary]
+ *     summary: List examples for a word
+ *     description: |
+ *       Returns all example sentences linked to the given word via the
+ *       `word_examples` join table. Each entry includes a `wordExampleId`
+ *       (the `word_examples.id` SERIAL column) which is required when scoping
+ *       examples into a lesson via
+ *       `POST /api/lessons/{lessonId}/words/{lessonWordId}/examples`.
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: wordId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: UUID of the word whose examples to list
+ *     responses:
+ *       '200':
+ *         description: Examples for the word, each annotated with wordExampleId
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/WordExampleEntry'
+ *       '401':
+ *         $ref: '#/components/responses/Unauthorized'
+ *       '403':
+ *         $ref: '#/components/responses/Forbidden'
+ *       '404':
+ *         $ref: '#/components/responses/NotFound'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+// GET /api/vocabulary/words/:wordId/examples
+vocabularyRouter.get(
+  '/words/:wordId/examples',
+  adminOrOperator,
+  asyncHandler(async (req: Request, res: Response) => {
+    const examples = await vocabularyService.listWordExamples(req.params.wordId);
+    return res.json(examples);
+  }),
+);
+
+/**
+ * @openapi
  * /api/vocabulary/words/{wordId}/examples/{exId}:
  *   delete:
  *     tags: [Vocabulary]
